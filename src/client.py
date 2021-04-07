@@ -9,7 +9,7 @@ from logger import logger
 
 class client():
 
-    def __init__(self, id: int, prueba: int, addr: str, port: int):
+    def __init__(self, id: int, prueba: int, addr: str, port_tcp: int, port_udp:int):
         """Función que crea un cliente
         Args:
             id (int): Id del cliente
@@ -19,8 +19,9 @@ class client():
         """
         self.name = f"Cliente{id}"
         self.prueba = prueba
-        self.HEADER = 2**20
-        self.ADDR = (addr, port)
+        self.SIZE = 2**16
+        self.ADDR_TCP = (addr, port_tcp)
+        self.ADDR_UDP = (addr, port_udp)
         self.HELLO = "HELLO"
         self.CONFIRM = "CONFIRM"
         self.GOODBYE = "GOODBYE"
@@ -31,67 +32,51 @@ class client():
 
     def __call__(self):
         self.connect()
-        self.client.sendall(self.HELLO.encode())
+        progress=0       
+        pbar = tqdm(total=100,initial=progress)
+        print("")
+
+        self.client_tcp.sendall(self.HELLO.encode())
         fail=False
-        with self.client,self.client.makefile('rb') as serverFile:
+        with self.client_tcp.makefile('rb') as serverFile:
             fileName = serverFile.readline().strip().decode()
-            fileSize = float(serverFile.readline().strip().decode())*self.HEADER
+            fileSize = float(serverFile.readline().strip().decode())*2**20
             fileExtension = serverFile.readline().strip().decode()
             self.logger.log_info(f'[MESSAGE] File name arrived {fileName}')
             self.logger.log_info(f'[MESSAGE] File size arrived {fileSize}')
             hashFile = serverFile.readline().strip().decode()
             self.logger.log_info(f'[MESSAGE] Hash digest arrived')
             self.logger.log_info(f'[MESSAGE] File transfer will begin')
-            currentFileTransfer = fileSize
-            length=0
-            paquetes=1
-            self.route = f'./recivedFiles/{self.name}-Prueba-{self.prueba}.{fileExtension}'
-            with open(self.route,'wb') as f:
-                progress = 0
-                length = fileSize
-                pbar = tqdm(total=100,initial=progress)
-                while length:
-                    packet = min(fileSize,self.HEADER)
-                    data = serverFile.read(int(packet))
-                    length-=len(data)
-                    progress = round((fileSize-length)/fileSize*100,0)
-                    f.write(data)
-                    pbar.update(progress)
-                    paquetes+=1
-                    if not data: break
-                
-            pbar.close()
-            if length==0:
-                self.logger.log_info(f'[MESSAGE] File transfer complete. Checking integrity')
-                localHash = self.getHashFile()
-                if localHash==hashFile:                  
-                    self.logger.log_critical(f'[MESSAGE] File transfer complete. Integrity correct')
-                    self.logger.log_critical(f'[MESSAGE] File arrived in {paquetes} packets')
-                    end_time = time.time()
-                    self.client.sendall(self.CONFIRM.encode(),)
-                    init_time = float(self.client.recv(self.HEADER).decode())
-                    self.client.sendall(str(end_time).encode())
-                    self.logger.log_info(f"[MESSAGE] File has arrived in {end_time-init_time} seconds")
-                else:
-                    self.logger.log_critical(f'[MESSAGE] File transfer complete. Integrity fail')
-                    fail=True
-            else:
-                self.logger.log_critical(f'[MESSAGE] File transfer complete. Incorrect file')
-                fail=True
-        if fail:
-            os.remove(self.route)
-            sys.exit(1)
-            
+        self.route = f'./recivedFiles/{self.name}-Prueba-{self.prueba}.{fileExtension}'
+        self.client_tcp.sendall(self.CONFIRM.encode())
 
-
+        self.client_udp.bind(self.ADDR_UDP)
+        with open(self.route,'wb') as f:
+            progress = 0
+            length = fileSize
+            while length>0:
+                print("length")
+                packet = int(min(fileSize,self.SIZE))
+                data = self.client_udp.recvfrom(packet)
+                print(data[0])
+                length-=len(data[0])
+                progress = int(round((fileSize-length)/fileSize*100,0))
+                f.write(data[0])
+                pbar.update(progress)
+                paquetes+=1
+                if not data: break
+        pbar.close()
+        print("Acabo")
     def connect(self):
         """Función para conectase al servidor
         """
         try:
             #Conexion al servidor
-            self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print(self.ADDR)
-            self.client.connect(self.ADDR)
+            self.client_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.client_tcp.connect(self.ADDR_TCP)
+
+            self.client_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            
 
         except Exception as ex:
             self.logger.log_critical(ex)
@@ -111,7 +96,7 @@ class client():
 if __name__ == '__main__':
     id = int(sys.argv[1])
     direccion = socket.gethostbyname(socket.gethostname())
-    puerto =5050
-
-    nuevoCliente = client(id,1,direccion,puerto)
+    puerto_tcp =5050
+    puerto_udp = 5051
+    nuevoCliente = client(id,1,direccion,puerto_tcp,puerto_udp)
     nuevoCliente()

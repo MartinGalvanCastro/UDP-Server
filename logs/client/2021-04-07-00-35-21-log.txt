@@ -1,0 +1,5 @@
+INFO:client:00:35:21-[STARTING] Logs initialized for client
+INFO:client:00:35:21-[MESSAGE] File name arrived SmallTestFile.txt
+INFO:client:00:35:21-[MESSAGE] File size arrived 1.0
+INFO:client:00:35:21-[MESSAGE] Hash digest arrived
+INFO:client:00:35:21-[MESSAGE] File transfer will begin

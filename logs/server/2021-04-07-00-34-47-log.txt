@@ -1,0 +1,14 @@
+INFO:server:00:34:47-[STARTING] Logs initialized
+INFO:server:00:34:47-[STARTING] Server is starting...
+INFO:server:00:34:47-[STARTING] Server TCP is listening...
+INFO:server:00:34:47-[LISTENING] Server TCP is listening on 192.168.1.14
+INFO:server:00:34:47-[STARTING] Server UDP is listening...
+INFO:server:00:34:47-[LISTENING] Server UDP is listening on 192.168.1.14
+INFO:server:00:34:49-[CONNECTED] CONNECTION stablished with ('192.168.1.14', 65446)
+INFO:server:00:34:49-[CONNECTION] ('192.168.1.14', 65446)CONNECTION
+INFO:server:00:34:49-[CONNECTION] 1 Clients ready
+INFO:server:00:34:49-[MESSAGE] File to be send is: SmallTestFile.txt
+INFO:server:00:34:49-[MESSAGE] File size is of 9.5367431640625e-07
+INFO:server:00:34:49-[MESSAGE] Hash File has been sent to ('192.168.1.14', 65446)
+INFO:server:00:34:49-[MESSAGE] File transfer via UDP will begin
+INFO:server:00:34:49-[MESSAGE] File is has been sent to ('192.168.1.14', 65446) in 2 packets

@@ -26,9 +26,11 @@ class server():
         assert 1 <= file <= 3, "El archivo no es el indicado"
 
         # Server class constant
-        self.HEADER = 2**20
-        self.PORT = 5050
-        self.ADDR = (socket.gethostbyname(socket.gethostname()), self.PORT)
+        self.SIZE = 2**16
+        self.PORT_TCP = 5050
+        self.PORT_UDP = 5051
+        self.ADDR_TCP = (socket.gethostbyname(socket.gethostname()), self.PORT_TCP)
+        self.ADDR_UDP = (socket.gethostbyname(socket.gethostname()), self.PORT_UDP)
         self.HELLO = "HELLO"
         self.CONFIRM = "CONFIRM"
         self.GOODBYE = "GOODBYE"
@@ -40,10 +42,12 @@ class server():
         self.logger = logger('server')
         self.logger.log_info('[STARTING] Logs initialized')
 
-        # Server connect
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.bind(self.ADDR)
+        # Server conn_tcpect
+        self.server_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_tcp.bind(self.ADDR_TCP)
         self.logger.log_info("[STARTING] Server is starting...")
+
+        self.server_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.connected=True
 
         # Listado de clientes
@@ -56,24 +60,32 @@ class server():
             """Función que inicaliza el servidor
             """
             # Se logea que el servidor comienza a escuchar por ADDR[0]
-            self.logger.log_info("[STARTING] Server is listening...")
-            self.server.listen()
+            self.logger.log_info("[STARTING] Server TCP is listening...")
+            self.server_tcp.listen()
             self.logger.log_info(
-                f"[LISTENING] Server is listening on {self.ADDR[0]}")
+                f"[LISTENING] Server TCP is listening on {self.ADDR_TCP[0]}")
+
+            self.logger.log_info("[STARTING] Server UDP is listening...")
+            self.logger.log_info(
+                f"[LISTENING] Server UDP is listening on {self.ADDR_TCP[0]}")
+
+            
             synchEvent = threading.Event()
             # Siempre y cuando se este escuchando
             while self.connected:
                 # Acepta la conexión
-                conn, addr = self.server.accept()
-                self.logger.log_info(f"[CONNECTED] Connection stablished with {addr}")
-                self.clients.append((conn,addr))
+                conn_tcp, addr = self.server_tcp.accept()
+                self.logger.log_info(f"[CONNECTED] CONNECTION stablished with {addr}")
+                self.clients.append((conn_tcp,addr))
 
                 # Se crea un thread para manejar los clientes
                 thread = threading.Thread(
-                    target=self.handle_client, args=(conn,addr,synchEvent))
+                    target=self.handle_client, args=(conn_tcp,self.server_udp,addr,synchEvent))
                 thread.start()
-                # Se logea la nueva conexión
-            self.logger.log_critical("[SHUTDOWN] Server is on shutdown")
+                
+                self.conn_tcpected = self.clients == self.MIN_CON
+
+            self.logger.log_critical("[SHUTDOWN] Server TCP is on shutdown")
         except Exception as ex:
             self.logger.log_critical(ex)
             raise ex
@@ -110,61 +122,55 @@ class server():
         return h.hexdigest()
 
     
-    def handle_client(self, conn:socket, addr:tuple,event:threading.Event):
+    def handle_client(self, conn_tcp:socket, conn_udp:socket, addr:tuple, event:threading.Event):
         """Función que maneja las nuevas conexiones con el cliente
 
         Args:
-            conn ([type]): Conexión del cliente
+            conn_tcp ([type]): Conexión del cliente
             addr (str): Dirección del cliente
         """
         try:
             # Logea la nueva conexión
-            self.logger.log_info(f"[NEW CONNECTION] {addr} connected")
-            msg = conn.recv(self.HEADER).decode()
+            self.logger.log_info(f"[CONNECTION] {addr}CONNECTION")
+            msg = conn_tcp.recv(self.SIZE).decode()
             if msg == self.HELLO:
-                self.synch(event)
-                with open(self.PATHS[self.fileIndex],'rb') as f:
-                    fileSize = f"{self.getSyzeInMB()}"
-                    fileName = f"{self.PATHS[self.fileIndex].split('/')[-1]}"
-                    self.logger.log_info(f"[MESSAGE] File to be send is: {fileName}")
-                    self.logger.log_info(f"[MESSAGE] File size is of {fileSize}")
-                    conn.sendall(fileName.encode()+b'\n')
-                    conn.sendall(fileSize.encode()+b'\n')
-                    conn.sendall(self.PATHS[self.fileIndex].split(".")[-1].encode()+b'\n')
-                    conn.sendall(self.getHashFile().encode()+b'\n',)
-                    self.logger.log_info(f"[MESSAGE] Hash File has been sent to {addr}")
-                    init_time = time.time()
-                    data = f.read(self.HEADER)
-                    self.logger.log_info(f"[MESSAGE] File is been send to {addr}")
-                    paquetes=1
-                    while data:
-                        conn.sendall(data)
-                        data = f.read(self.HEADER)
-                        paquetes+=1
-                    self.logger.log_info(f"[MESSAGE] File is has been sent to {addr} in {paquetes} packets")
-                msgRcv = conn.recv(self.HEADER).decode()
-                if msgRcv and msgRcv==self.CONFIRM:
-                    conn.sendall(str(init_time).encode())
-                    end_time = float(conn.recv(self.HEADER).decode())
-                    self.logger.log_info(f"[MESSAGE] File has been send to {addr} in {end_time-init_time} seconds")
-                else:
-                    self.logger.log_error(f"[MESSAGE] Error while sending file to {addr}")
 
-            else:
-                self.logger.log_error(f"[MESSAGE] Unexpected message of {addr}, bad handshake")
-            
-            conn.close()
-            self.logger.log_info(f"[CONNECTION] {addr} connection closed")
+                #Se envia metadata y el hash
+                self.synch(event)
+                fileSize = f"{self.getSyzeInMB()}"
+                fileName = f"{self.PATHS[self.fileIndex].split('/')[-1]}"
+                self.logger.log_info(f"[MESSAGE] File to be send is: {fileName}")
+                self.logger.log_info(f"[MESSAGE] File size is of {fileSize}")
+                conn_tcp.sendall(fileName.encode()+b'\n')
+                conn_tcp.sendall(fileSize.encode()+b'\n')
+                conn_tcp.sendall(self.PATHS[self.fileIndex].split(".")[-1].encode()+b'\n')
+                conn_tcp.sendall(self.getHashFile().encode()+b'\n',)
+                self.logger.log_info(f"[MESSAGE] Hash File has been sent to {addr}")
+                msg = conn_tcp.recv(self.SIZE).decode()
+
+                
+                if msg == self.CONFIRM:
+                    print("UDP Start")
+                    self.logger.log_info(f"[MESSAGE] File transfer via UDP will begin")
+                    with open(self.PATHS[self.fileIndex],'rb') as f:
+                        init_time = time.time()
+                        data = f.read(self.SIZE)
+                        paquetes=1
+                        while data:
+                            conn_udp.sendto(data,(addr[0],self.PORT_UDP))
+                            data = f.read(self.SIZE)
+                            paquetes+=1
+                        self.logger.log_info(f"[MESSAGE] File is has been sent to {addr} in {paquetes} packets")
+
 
         except Exception as ex:
             self.logger.log_critical(ex)
             raise ex
-            sys.exit(1)
 
 
 
 
 if __name__ == '__main__':
     min_con,file_name = int(sys.argv[1]),int(sys.argv[2])
-    serverTCP = server(min_con,file_name)
-    serverTCP.start()
+    server = server(min_con,file_name)
+    server.start()
