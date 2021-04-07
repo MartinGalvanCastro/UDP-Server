@@ -26,7 +26,7 @@ class server():
         assert 1 <= file <= 3, "El archivo no es el indicado"
 
         # Server class constant
-        self.SIZE = 2**16
+        self.SIZE = 2**10
         self.PORT_TCP = 5050
         self.PORT_UDP = 5051
         self.ADDR_TCP = (socket.gethostbyname(socket.gethostname()), self.PORT_TCP)
@@ -159,6 +159,8 @@ class server():
                         while data:
                             conn_udp.sendto(data,(addr[0],self.PORT_UDP))
                             data = f.read(self.SIZE)
+                            #print(data,end="")
+                            time.sleep(0.0001)
                             paquetes+=1
                         self.logger.log_info(f"[MESSAGE] File is has been sent to {addr} in {paquetes} packets")
 

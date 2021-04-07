@@ -19,7 +19,7 @@ class client():
         """
         self.name = f"Cliente{id}"
         self.prueba = prueba
-        self.SIZE = 2**16
+        self.SIZE = 2**10
         self.ADDR_TCP = (addr, port_tcp)
         self.ADDR_UDP = (addr, port_udp)
         self.HELLO = "HELLO"
@@ -31,11 +31,7 @@ class client():
 
 
     def __call__(self):
-        self.connect()
-        progress=0       
-        pbar = tqdm(total=100,initial=progress)
-        print("")
-
+        self.connect()     
         self.client_tcp.sendall(self.HELLO.encode())
         fail=False
         with self.client_tcp.makefile('rb') as serverFile:
@@ -49,25 +45,26 @@ class client():
             self.logger.log_info(f'[MESSAGE] File transfer will begin')
         self.route = f'./recivedFiles/{self.name}-Prueba-{self.prueba}.{fileExtension}'
         self.client_tcp.sendall(self.CONFIRM.encode())
-
-        
+        progress=0  
+        pbar = tqdm(total=100,initial=progress)
         paquetes = 1
         with open(self.route,'wb') as f:
             progress = 0
+            prev = 0
             length = fileSize
             while length>0:
-                print("length")
-                packet = int(min(fileSize,self.SIZE))
+                packet = int(min(length,self.SIZE))
                 data = self.client_udp.recvfrom(packet)
-                print(data[0])
+                prev = int(round((fileSize-length)/fileSize*100,0))
                 length-=len(data[0])
                 progress = int(round((fileSize-length)/fileSize*100,0))
                 f.write(data[0])
-                pbar.update(progress)
+                pbar.update(progress-prev) 
                 paquetes+=1
                 if not data: break
-        pbar.close()
-        print("Acabo")
+        
+        
+
     def connect(self):
         """Función para conectase al servidor
         """
