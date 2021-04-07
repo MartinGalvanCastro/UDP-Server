@@ -50,7 +50,8 @@ class client():
         self.route = f'./recivedFiles/{self.name}-Prueba-{self.prueba}.{fileExtension}'
         self.client_tcp.sendall(self.CONFIRM.encode())
 
-        self.client_udp.bind(self.ADDR_UDP)
+        
+        paquetes = 1
         with open(self.route,'wb') as f:
             progress = 0
             length = fileSize
@@ -76,7 +77,7 @@ class client():
             self.client_tcp.connect(self.ADDR_TCP)
 
             self.client_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            
+            self.client_udp.bind(self.ADDR_UDP)
 
         except Exception as ex:
             self.logger.log_critical(ex)
