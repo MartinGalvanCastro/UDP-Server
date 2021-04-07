@@ -48,6 +48,7 @@ class server():
         self.logger.log_info("[STARTING] Server is starting...")
 
         self.server_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.server_udp.bind(self.ADDR_UDP)
         self.connected=True
 
         # Listado de clientes
@@ -83,12 +84,19 @@ class server():
                     target=self.handle_client, args=(conn_tcp,self.server_udp,addr,synchEvent))
                 thread.start()
                 
+                #Salir del Loop
                 self.conn_tcpected = self.clients == self.MIN_CON
 
-            self.logger.log_critical("[SHUTDOWN] Server TCP is on shutdown")
+            #Servidor se apaga
+            self.logger.log_critical("[SHUTDOWN] Server is on shutdown")
+        
+        #Si hay algun error
         except Exception as ex:
             self.logger.log_critical(ex)
             raise ex
+        
+        #Cerrar
+        finally:
             sys.exit(1)
         
 
@@ -146,23 +154,42 @@ class server():
                 conn_tcp.sendall(self.PATHS[self.fileIndex].split(".")[-1].encode()+b'\n')
                 conn_tcp.sendall(self.getHashFile().encode()+b'\n',)
                 self.logger.log_info(f"[MESSAGE] Hash File has been sent to {addr}")
-                msg = conn_tcp.recv(self.SIZE).decode()
-
+                msg = conn_tcp.recv(self.SIZE).decode()               
                 
+                #Se envia el archivo si llego ell hash
                 if msg == self.CONFIRM:
-                    print("UDP Start")
                     self.logger.log_info(f"[MESSAGE] File transfer via UDP will begin")
+                    data,address = conn_udp.recvfrom(self.SIZE)
+
+
                     with open(self.PATHS[self.fileIndex],'rb') as f:
                         init_time = time.time()
                         data = f.read(self.SIZE)
                         paquetes=1
                         while data:
-                            conn_udp.sendto(data,(addr[0],self.PORT_UDP))
+                            conn_udp.sendto(data,address)
                             data = f.read(self.SIZE)
-                            #print(data,end="")
                             time.sleep(0.0001)
                             paquetes+=1
                         self.logger.log_info(f"[MESSAGE] File is has been sent to {addr} in {paquetes} packets")
+
+                #Se envia y recibe el tiempo cuando se acaba 
+                msg = conn_tcp.recv(self.SIZE).decode()
+                if msg == self.CONFIRM:
+                    
+                    #Intercambio de tiempo
+                    conn_tcp.sendall(str(init_time).encode())
+                    end_time = float(conn_tcp.recv(self.SIZE).decode())
+                    self.logger.log_info(f"[MESSAGE] File has been send to {addr} in {end_time-init_time} seconds")
+                
+                else:
+                    self.logger.log_critical("Integrity check failed")
+                    
+            else:
+                self.logger.log_error(f"[MESSAGE] Unexpected message of {addr}, bad handshake")
+            
+            conn_tcp.close()
+            self.logger.log_info(f"[CONNECTION] {addr} connection closed")
 
 
         except Exception as ex:

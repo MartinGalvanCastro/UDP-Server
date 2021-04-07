@@ -31,9 +31,14 @@ class client():
 
 
     def __call__(self):
+        print("Client Status: Created")
         self.connect()     
+        print("Client Status: Waiting for connections of other clients")
         self.client_tcp.sendall(self.HELLO.encode())
+        print("Client Status: File transfer will begin")
         fail=False
+
+        #Recibe la metadata del archivo
         with self.client_tcp.makefile('rb') as serverFile:
             fileName = serverFile.readline().strip().decode()
             fileSize = float(serverFile.readline().strip().decode())*2**20
@@ -43,27 +48,77 @@ class client():
             hashFile = serverFile.readline().strip().decode()
             self.logger.log_info(f'[MESSAGE] Hash digest arrived')
             self.logger.log_info(f'[MESSAGE] File transfer will begin')
+        
+        #Inicializa la ruta y envia confirmación al servidor
         self.route = f'./recivedFiles/{self.name}-Prueba-{self.prueba}.{fileExtension}'
         self.client_tcp.sendall(self.CONFIRM.encode())
+        self.client_udp.sendto(self.HELLO.encode(),self.ADDR_UDP)
+        
+        #Inicializa el pbar
         progress=0  
         pbar = tqdm(total=100,initial=progress)
         paquetes = 1
+
+
+
+        #Escribe el archivo
         with open(self.route,'wb') as f:
             progress = 0
             prev = 0
             length = fileSize
+            #Loop para recibir datos
             while length>0:
                 packet = int(min(length,self.SIZE))
-                data = self.client_udp.recvfrom(packet)
+                data = self.client_udp.recv(packet)
                 prev = int(round((fileSize-length)/fileSize*100,0))
-                length-=len(data[0])
+                length-=len(data)
                 progress = int(round((fileSize-length)/fileSize*100,0))
-                f.write(data[0])
+                f.write(data)
                 pbar.update(progress-prev) 
                 paquetes+=1
                 if not data: break
-        
-        
+        #Cierra la barra y registra el tiempo
+        end_time = time.time()
+        pbar.close()
+
+        print("Client Status: Transfer complete, checking integrity")
+        #Verifica que llegaron todos los datos
+        if length==0:
+            
+            self.logger.log_info(f'[MESSAGE] File transfer complete. Checking integrity')
+            localHash = self.getHashFile()
+
+            #Se verifica el hash
+            if localHash==hashFile:
+
+                print("Integrity correct. Logging details")
+
+                #Se confirma al servidor que es correcto el archivo
+                self.client_tcp.sendall(self.CONFIRM.encode())
+
+                #Intercambio de tiempos
+                init_time = float(self.client_tcp.recv(self.SIZE).decode())
+                self.client_tcp.sendall(str(end_time).encode())
+
+
+                self.logger.log_critical(f'[MESSAGE] File transfer complete. Integrity correct')
+                self.logger.log_critical(f'[MESSAGE] File arrived in {paquetes} packets')
+                
+                
+                self.logger.log_info(f"[MESSAGE] File has arrived in {end_time-init_time} seconds")
+            else:
+                print("Integrity incorrect. Logging details")
+                self.logger.log_critical(f'[MESSAGE] File transfer complete. Integrity fail')
+                fail=True
+        else:
+            print("Integrity incorrect. Logging details")
+            self.logger.log_critical(f'[MESSAGE] File transfer complete. Incorrect file')
+            fail=True
+
+        if fail:
+            self.client_tcp.sendall(self.GOODBYE)
+            os.remove(self.route)
+            sys.exit(1)
 
     def connect(self):
         """Función para conectase al servidor
@@ -73,8 +128,7 @@ class client():
             self.client_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_tcp.connect(self.ADDR_TCP)
 
-            self.client_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.client_udp.bind(self.ADDR_UDP)
+            self.client_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 
         except Exception as ex:
             self.logger.log_critical(ex)
