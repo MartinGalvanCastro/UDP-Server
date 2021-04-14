@@ -35,11 +35,12 @@ class client():
         self.connect()     
         print("Client Status: Waiting for connections of other clients")
         self.client_tcp.sendall(self.HELLO.encode())
-        print("Client Status: File transfer will begin")
+        
         fail=False
 
         #Recibe la metadata del archivo
         with self.client_tcp.makefile('rb') as serverFile:
+            print("Client Status: File transfer will begin")
             fileName = serverFile.readline().strip().decode()
             fileSize = float(serverFile.readline().strip().decode())*2**20
             fileExtension = serverFile.readline().strip().decode()
