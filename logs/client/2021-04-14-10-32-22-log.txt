@@ -1,9 +1,0 @@
-INFO:client:10:32:22-[STARTING] Logs initialized for client
-INFO:client:10:32:50-[MESSAGE] File name arrived SmallTestFile.txt
-INFO:client:10:32:50-[MESSAGE] File size arrived 196608.0
-INFO:client:10:32:50-[MESSAGE] Hash digest arrived
-INFO:client:10:32:50-[MESSAGE] File transfer will begin
-INFO:client:10:32:53-[MESSAGE] File transfer complete. Checking integrity
-CRITICAL:client:10:32:53-[MESSAGE] File transfer complete. Integrity correct
-CRITICAL:client:10:32:53-[MESSAGE] File arrived in 193 packets
-INFO:client:10:32:53-[MESSAGE] File has arrived in 2.9724483489990234 seconds

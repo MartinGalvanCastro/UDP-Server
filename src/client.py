@@ -19,7 +19,7 @@ class client():
         """
         self.name = f"Cliente{id}"
         self.prueba = prueba
-        self.SIZE = 2**10
+        self.SIZE = 2**15
         self.ADDR_TCP = (addr, port_tcp)
         self.ADDR_UDP = (addr, port_udp)
         self.HELLO = "HELLO"
@@ -68,16 +68,32 @@ class client():
             prev = 0
             length = fileSize
             #Loop para recibir datos
-            while length>0:
-                packet = int(min(length,self.SIZE))
-                data = self.client_udp.recv(packet)
-                prev = int(round((fileSize-length)/fileSize*100,0))
-                length-=len(data)
-                progress = int(round((fileSize-length)/fileSize*100,0))
-                f.write(data)
-                pbar.update(progress-prev) 
-                paquetes+=1
-                if not data: break
+            
+            try:
+                while length>0:
+                    if paquetes%100000==0:
+                        print(length)
+                    packet = int(min(length,self.SIZE))
+                    data = self.client_udp.recv(packet)
+                    prev = int(round((fileSize-length)/fileSize*100,0))
+                    length-=len(data)
+                    progress = int(round((fileSize-length)/fileSize*100,0))
+                    f.write(data)
+                    pbar.update(progress-prev) 
+                    paquetes+=1
+                    if not data: 
+                        break
+            except TimeoutError:
+                end_time = time.time()
+                pbar.close()
+                self.client_tcp.sendall(self.CONFIRM.encode())
+                #Intercambio de tiempos
+                init_time = float(self.client_tcp.recv(self.SIZE).decode())
+                self.client_tcp.sendall(str(end_time).encode())
+                print("Status: Packet loss detected")
+                self.logger.log_info(f"[MESSAGE] File has arrived in {end_time-init_time} seconds")
+                self.logger.log_info(f"[ERROR] Packet loss ratio: {100 * length/fileSize}" )
+                
         #Cierra la barra y registra el tiempo
         end_time = time.time()
         pbar.close()
@@ -129,7 +145,8 @@ class client():
             self.client_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_tcp.connect(self.ADDR_TCP)
 
-            self.client_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+            self.client_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.client_udp.settimeout(5.0)
 
         except Exception as ex:
             self.logger.log_critical(ex)
